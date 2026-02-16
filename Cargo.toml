@@ -9,6 +9,7 @@ repository = "https://github.com/yourusername/zero-trust-proxy"
 keywords = ["security", "zero-trust", "proxy", "authentication", "authorization"]
 
 [dependencies]
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "postgres", "macros", "chrono", "uuid"] }
 # Async runtime
 tokio = { version = "1.40", features = ["full"] }
 tokio-util = "0.7"
@@ -32,7 +33,6 @@ serde_json = "1.0"
 toml = "0.8"
 
 # Database
-sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono"] }
 redis = { version = "0.26", features = ["tokio-comp", "connection-manager"] }
 
 # Authentication & Crypto
@@ -55,7 +55,6 @@ metrics-exporter-prometheus = "0.15"
 
 # Configuration
 config = "0.14"
-dotenv = "0.15"
 
 # Error handling
 thiserror = "1.0"
@@ -66,7 +65,7 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # IP & Geo
 ipnetwork = "0.20"
-maxminddb = "0.24"
+maxminddb = "0.27"
 
 # Policy Engine (OPA)
 regorus = "0.2"
