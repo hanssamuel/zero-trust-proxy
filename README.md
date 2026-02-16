@@ -19,16 +19,15 @@ This proxy acts as a security gateway that:
 ## ✨ Key Features
 
 ### 🔐 Authentication & Identity
-- Multi-factor authentication (TOTP, WebAuthn, hardware keys)
+- Multi-factor authentication (TOTP, WebAuthn ready, hardware keys planned)
 - Session management with short-lived tokens
 - Device fingerprinting and trust scoring
 - Certificate-based authentication (mTLS)
-- Integration with identity providers (OAuth2, SAML)
+- Integration ready for identity providers (OAuth2, SAML)
 
 ### 📋 Policy Engine
 - Attribute-based access control (ABAC)
 - Context-aware authorization
-- Integration with Open Policy Agent (OPA)
 - Dynamic policy evaluation per request
 - Least-privilege enforcement
 
@@ -37,12 +36,12 @@ This proxy acts as a security gateway that:
 - Behavioral anomaly detection
 - Geolocation and time-based analysis
 - Device posture assessment
-- Threat intelligence integration
+- Threat intelligence integration ready
 
-### 🛡️ Security Controls
+### ��️ Security Controls
 - Adaptive authentication (step-up when risk increases)
 - Rate limiting and DDoS protection
-- IP reputation checking
+- IP reputation checking ready
 - Request sanitization and validation
 - Encrypted connections (TLS 1.3)
 
@@ -54,7 +53,6 @@ This proxy acts as a security gateway that:
 - Request tracing and correlation
 
 ## 🏗️ Architecture
-
 ```
 ┌─────────────┐
 │   Client    │
@@ -110,7 +108,7 @@ This proxy acts as a security gateway that:
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/zero-trust-proxy.git
+git clone https://github.com/hanssamuel/zero-trust-proxy.git
 cd zero-trust-proxy
 ```
 
@@ -143,7 +141,6 @@ cargo run --release
 ## 📖 Configuration
 
 The proxy is configured via `config/config.toml`:
-
 ```toml
 [server]
 host = "0.0.0.0"
@@ -189,7 +186,6 @@ cargo bench
 ## 📊 Monitoring
 
 The proxy exposes Prometheus metrics at `/metrics`:
-
 ```bash
 curl http://localhost:9090/metrics
 ```
@@ -212,13 +208,13 @@ Key metrics:
 
 - [x] Basic reverse proxy functionality
 - [x] Authentication layer with JWT
-- [ ] Multi-factor authentication (TOTP, WebAuthn)
-- [ ] Risk scoring engine
-- [ ] Policy engine with OPA integration
-- [ ] Device fingerprinting
-- [ ] Behavioral anomaly detection
+- [x] Multi-factor authentication (TOTP)
+- [x] Risk scoring engine
+- [x] Policy engine with ABAC
+- [x] Device fingerprinting
+- [ ] WebAuthn support
+- [ ] Behavioral anomaly detection with ML
 - [ ] Threat intelligence integration
-- [ ] Machine learning-based risk assessment
 - [ ] Admin dashboard and UI
 
 ## 🤝 Contributing
@@ -232,9 +228,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 👨‍💻 Author
 
 **Osayemwenre Sam Jegbefumwen**
-- Security Engineer with expertise in zero-trust architectures
-- GitHub: [@yourusername](https://github.com/yourusername)
-- LinkedIn: [Your LinkedIn](https://linkedin.com/in/yourprofile)
+- Security Engineer specializing in zero-trust architectures
+- GitHub: [@hanssamuel](https://github.com/hanssamuel)
 
 ## 🙏 Acknowledgments
 
