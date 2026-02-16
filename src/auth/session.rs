@@ -89,7 +89,7 @@ impl SessionManager {
         let serialized = serde_json::to_string(&session)?;
         let ttl = self.session_duration_minutes * 60; // Convert to seconds
 
-        self.redis.set_ex(&key, serialized, ttl as u64).await?;
+        self.redis.set_ex::<_, _, ()>(&key, serialized, ttl as u64).await?;
 
         Ok(session)
     }
@@ -124,7 +124,7 @@ impl SessionManager {
         let ttl = (session.expires_at - Utc::now()).num_seconds();
 
         if ttl > 0 {
-            self.redis.set_ex(&key, serialized, ttl as u64).await?;
+            self.redis.set_ex::<_, _, ()>(&key, serialized, ttl as u64).await?;
         }
 
         Ok(())
@@ -133,7 +133,7 @@ impl SessionManager {
     /// Delete a session
     pub async fn delete_session(&mut self, session_id: &str) -> ProxyResult<()> {
         let key = format!("session:{}", session_id);
-        self.redis.del(&key).await?;
+        self.redis.del::<_, ()>(&key).await?;
         Ok(())
     }
 

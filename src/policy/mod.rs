@@ -1,4 +1,4 @@
-use crate::error::{ProxyError, ProxyResult};
+use crate::error::ProxyResult;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

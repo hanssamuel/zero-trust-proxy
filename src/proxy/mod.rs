@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::error::{ProxyError, ProxyResult};
+use crate::error::ProxyError;
 use anyhow::Result;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
@@ -10,8 +10,8 @@ use sqlx::PgPool;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tracing::{error, info, warn};
-use http_body_util::{BodyExt, Full};
+use tracing::{error, info};
+use http_body_util::Full;
 use hyper::body::Bytes;
 
 pub struct ProxyServer {
