@@ -1,0 +1,37 @@
+[server]
+host = "0.0.0.0"
+port = 8443
+enable_tls = false
+# tls_cert = "certs/server.crt"
+# tls_key = "certs/server.key"
+
+[database]
+url = "postgresql://ztp_user:changeme@localhost:5432/zero_trust_proxy"
+max_connections = 20
+
+[redis]
+url = "redis://localhost:6379"
+
+[auth]
+session_duration_minutes = 15
+require_mfa = false
+allowed_mfa_methods = ["totp", "webauthn"]
+jwt_secret = "change-this-to-a-secure-random-string-in-production"
+jwt_expiration_hours = 24
+
+[risk]
+max_risk_score = 100
+step_up_threshold = 60
+block_threshold = 85
+enable_geolocation = false
+enable_threat_intel = false
+
+[policy]
+policy_file = "config/policy.rego"
+enable_opa = false
+default_deny = true
+
+[upstream]
+default_backend = "http://localhost:8080"
+timeout_seconds = 30
+enable_mtls = false

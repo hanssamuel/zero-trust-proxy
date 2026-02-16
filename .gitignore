@@ -1,0 +1,51 @@
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Configuration
+config/config.toml
+config/secrets.toml
+
+# Certificates
+*.pem
+*.key
+*.crt
+certs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Testing
+coverage/
+*.profraw
+*.profdata
+
+# Build artifacts
+*.so
+*.dylib
+*.dll
+
+# Temporary files
+tmp/
+temp/
