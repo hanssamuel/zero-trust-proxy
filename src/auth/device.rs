@@ -1,4 +1,3 @@
-
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -13,7 +12,7 @@ pub struct DeviceFingerprint {
     pub ip_address: String,
     pub platform: String,
     pub browser: String,
-    pub trust_score: u32,  // 0-100
+    pub trust_score: u32, // 0-100
     pub is_trusted: bool,
     pub first_seen: DateTime<Utc>,
     pub last_seen: DateTime<Utc>,
@@ -59,7 +58,7 @@ impl DeviceFingerprint {
         let mut hasher = Sha256::new();
         hasher.update(user_agent.as_bytes());
         hasher.update(ip_address.as_bytes());
-        
+
         if let Some(resolution) = &metadata.screen_resolution {
             hasher.update(resolution.as_bytes());
         }
@@ -123,47 +122,6 @@ impl DeviceFingerprint {
     }
 }
 
-pub struct DeviceManager;
-
-impl DeviceManager {
-    pub fn new() -> Self {
-        Self
-    }
-
-    pub fn calculate_device_risk_score(device: &DeviceFingerprint) -> u32 {
-        let mut risk = 0u32;
-
-        // New device carries some risk
-        let days_since_first_seen = (Utc::now() - device.first_seen).num_days();
-        if days_since_first_seen < 1 {
-            risk += 30;
-        } else if days_since_first_seen < 7 {
-            risk += 15;
-        }
-
-        // Untrusted device
-        if !device.is_trusted {
-            risk += 20;
-        }
-
-        // Low trust score
-        if device.trust_score < 50 {
-            risk += 25;
-        }
-
-        // Unknown platform or browser
-        if device.platform == "Unknown" || device.browser == "Unknown" {
-            risk += 15;
-        }
-
-        risk.min(100)
-    }
-
-    pub fn should_require_step_up_auth(device: &DeviceFingerprint) -> bool {
-        !device.is_trusted || device.trust_score < 60
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -215,26 +173,5 @@ mod tests {
         device.decrease_trust(20);
         assert_eq!(device.trust_score, 60);
         assert!(!device.is_trusted);
-    }
-
-    #[test]
-    fn test_risk_calculation() {
-        let metadata = DeviceMetadata {
-            screen_resolution: None,
-            timezone: None,
-            language: None,
-            platform_version: None,
-            hardware_concurrency: None,
-        };
-
-        let device = DeviceFingerprint::new(
-            "user123".to_string(),
-            "Mozilla/5.0".to_string(),
-            "192.168.1.1".to_string(),
-            metadata,
-        );
-
-        let risk = DeviceManager::calculate_device_risk_score(&device);
-        assert!(risk > 0); // New, untrusted device should have risk
     }
 }

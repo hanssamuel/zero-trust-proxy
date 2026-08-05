@@ -88,8 +88,6 @@ impl AuditLogger {
     }
 
     pub async fn log(&self, event: AuditEvent) -> Result<(), sqlx::Error> {
-        // For now, just log to stdout
-        // In production, this would write to database
         tracing::info!(
             event_id = %event.id,
             event_type = ?event.event_type,
@@ -98,13 +96,48 @@ impl AuditLogger {
             "Audit event"
         );
 
-        // TODO: Implement database logging
-        // sqlx::query!(
-        //     "INSERT INTO audit_log (...) VALUES (...)",
-        //     ...
-        // )
-        // .execute(&self.db_pool)
-        // .await?;
+        // audit_log.device_id is a FK to devices(id), but the device_id we
+        // carry here is the caller-supplied opaque string from the JWT/login
+        // body -- not that row's UUID primary key. Rather than force a FK
+        // that may not resolve, fold it into metadata instead.
+        let mut metadata = event.metadata.clone();
+        if let Some(device_id) = &event.device_id {
+            match metadata.as_object_mut() {
+                Some(obj) => {
+                    obj.insert("device_id".to_string(), serde_json::json!(device_id));
+                }
+                None => metadata = serde_json::json!({ "device_id": device_id }),
+            }
+        }
+
+        let user_uuid = event
+            .user_id
+            .as_deref()
+            .and_then(|s| Uuid::parse_str(s).ok());
+        let event_id = Uuid::parse_str(&event.id).unwrap_or_else(|_| Uuid::new_v4());
+        let ip_address = if event.ip_address.parse::<std::net::IpAddr>().is_ok() {
+            event.ip_address.clone()
+        } else {
+            "0.0.0.0".to_string()
+        };
+        let event_type = json_str(&event.event_type);
+        let outcome = json_str(&event.outcome);
+
+        sqlx::query(
+            "INSERT INTO audit_log (id, event_type, user_id, ip_address, resource, action, outcome, risk_score, metadata)
+             VALUES ($1, $2, $3, $4::inet, $5, $6, $7, $8, $9)",
+        )
+        .bind(event_id)
+        .bind(event_type)
+        .bind(user_uuid)
+        .bind(ip_address)
+        .bind(&event.resource)
+        .bind(&event.action)
+        .bind(outcome)
+        .bind(event.risk_score.map(|s| s as i32))
+        .bind(metadata)
+        .execute(&self.db_pool)
+        .await?;
 
         Ok(())
     }
@@ -136,6 +169,7 @@ impl AuditLogger {
     pub async fn log_authorization(
         &self,
         user_id: &str,
+        ip_address: &str,
         resource: &str,
         action: &str,
         allowed: bool,
@@ -145,7 +179,7 @@ impl AuditLogger {
             EventType::Authorization,
             Some(user_id.to_string()),
             None,
-            "unknown".to_string(),
+            ip_address.to_string(),
             resource.to_string(),
             action.to_string(),
             if allowed {
@@ -181,6 +215,15 @@ impl AuditLogger {
 
         self.log(event).await
     }
+}
+
+/// Renders a serde-tagged enum to the same lowercase/snake_case string its
+/// `#[serde(rename_all = ...)]` attribute produces, for storing as plain text.
+fn json_str<T: Serialize>(value: &T) -> String {
+    serde_json::to_value(value)
+        .ok()
+        .and_then(|v| v.as_str().map(String::from))
+        .unwrap_or_else(|| "unknown".to_string())
 }
 
 #[cfg(test)]

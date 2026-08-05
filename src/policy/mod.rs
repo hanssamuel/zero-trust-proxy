@@ -139,8 +139,7 @@ impl PolicyEngine {
             return true;
         }
 
-        if pattern.ends_with("*") {
-            let prefix = &pattern[..pattern.len() - 1];
+        if let Some(prefix) = pattern.strip_suffix('*') {
             return resource.starts_with(prefix);
         }
 
@@ -187,7 +186,7 @@ mod tests {
     #[test]
     fn test_policy_evaluation_allow() {
         let mut engine = PolicyEngine::new(true);
-        
+
         let policy = Policy {
             id: "policy1".to_string(),
             name: "Allow Read".to_string(),
@@ -216,7 +215,7 @@ mod tests {
     #[test]
     fn test_policy_evaluation_deny() {
         let mut engine = PolicyEngine::new(true);
-        
+
         let policy = Policy {
             id: "policy1".to_string(),
             name: "Deny Delete".to_string(),

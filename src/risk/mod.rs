@@ -207,3 +207,89 @@ impl RiskEngine {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::auth::device::DeviceMetadata;
+
+    fn trusted_device() -> DeviceFingerprint {
+        let mut device = DeviceFingerprint::new(
+            "user123".to_string(),
+            "Mozilla/5.0".to_string(),
+            "10.0.0.1".to_string(),
+            DeviceMetadata {
+                screen_resolution: None,
+                timezone: None,
+                language: None,
+                platform_version: None,
+                hardware_concurrency: None,
+            },
+        );
+        device.trust_score = 90;
+        device.is_trusted = true;
+        device
+    }
+
+    fn base_context(device: DeviceFingerprint) -> RiskContext {
+        RiskContext {
+            user_id: "user123".to_string(),
+            device,
+            ip_address: "10.0.0.1".parse().unwrap(),
+            timestamp: Utc::now(),
+            geolocation: None,
+            previous_ip: None,
+            session_age_minutes: 0,
+            failed_attempts: 0,
+            time_since_last_success_hours: None,
+        }
+    }
+
+    #[test]
+    fn test_trusted_low_activity_session_allows() {
+        let engine = RiskEngine::new(60, 85);
+        let ctx = base_context(trusted_device());
+
+        let score = engine.calculate_risk(&ctx).unwrap();
+        assert!(matches!(score.recommendation, RiskRecommendation::Allow));
+    }
+
+    #[test]
+    fn test_untrusted_new_device_plus_failed_attempts_blocks() {
+        let engine = RiskEngine::new(60, 85);
+        let mut ctx = base_context(DeviceFingerprint::new(
+            "user123".to_string(),
+            "curl/8.0".to_string(),
+            "203.0.113.9".to_string(),
+            DeviceMetadata {
+                screen_resolution: None,
+                timezone: None,
+                language: None,
+                platform_version: None,
+                hardware_concurrency: None,
+            },
+        ));
+        ctx.failed_attempts = 12;
+        ctx.previous_ip = Some("198.51.100.1".parse().unwrap());
+
+        let score = engine.calculate_risk(&ctx).unwrap();
+        assert!(matches!(score.recommendation, RiskRecommendation::Block));
+        assert!(score.total_score >= 85);
+    }
+
+    #[test]
+    fn test_moderate_risk_triggers_step_up() {
+        let engine = RiskEngine::new(30, 90);
+        let mut ctx = base_context(trusted_device());
+        // Same device, but a handful of failed attempts and a stale session
+        // should be enough to cross a low step-up threshold without blocking.
+        ctx.failed_attempts = 2;
+        ctx.session_age_minutes = 130;
+
+        let score = engine.calculate_risk(&ctx).unwrap();
+        assert!(matches!(
+            score.recommendation,
+            RiskRecommendation::StepUpAuth
+        ));
+    }
+}

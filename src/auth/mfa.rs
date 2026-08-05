@@ -43,8 +43,16 @@ impl TotpManager {
         Ok(secret)
     }
 
-    pub fn generate_qr_url(&self, secret: &str, account: &str, issuer: &str) -> ProxyResult<String> {
-        Ok(format!("otpauth://totp/{}:{}?secret={}&issuer={}", issuer, account, secret, issuer))
+    pub fn generate_qr_url(
+        &self,
+        secret: &str,
+        account: &str,
+        issuer: &str,
+    ) -> ProxyResult<String> {
+        Ok(format!(
+            "otpauth://totp/{}:{}?secret={}&issuer={}",
+            issuer, account, secret, issuer
+        ))
     }
 
     pub fn verify_token(&self, secret: &str, token: &str) -> ProxyResult<bool> {
@@ -57,7 +65,8 @@ impl TotpManager {
         )
         .map_err(|e| ProxyError::AuthenticationFailed(e.to_string()))?;
 
-        let is_valid = totp.check_current(token)
+        let is_valid = totp
+            .check_current(token)
             .map_err(|e| ProxyError::AuthenticationFailed(e.to_string()))?;
 
         if !is_valid {
@@ -67,6 +76,9 @@ impl TotpManager {
         Ok(true)
     }
 
+    /// Only used by tests: production code never generates a caller's TOTP
+    /// code for them, but tests need a valid one to exercise verify_token.
+    #[allow(dead_code)]
     pub fn generate_current_token(&self, secret: &str) -> ProxyResult<String> {
         let totp = TOTP::new(
             Algorithm::SHA1,
@@ -77,18 +89,16 @@ impl TotpManager {
         )
         .map_err(|e| ProxyError::AuthenticationFailed(e.to_string()))?;
 
-        let token = totp.generate_current()
+        let token = totp
+            .generate_current()
             .map_err(|e| ProxyError::AuthenticationFailed(e.to_string()))?;
 
         Ok(token)
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct MfaEnrollmentRequest {
-    pub user_id: String,
-}
-
+// user_id for enroll/verify is derived from the caller's JWT, not the
+// request body, so these only need to carry the response shape.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MfaEnrollmentResponse {
     pub secret: String,
@@ -96,8 +106,35 @@ pub struct MfaEnrollmentResponse {
     pub manual_entry_key: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct MfaVerificationRequest {
-    pub user_id: String,
-    pub token: String,
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_enroll_and_verify_round_trip() {
+        let manager = TotpManager::new(MfaConfig::default());
+        let secret = manager.generate_secret().unwrap();
+
+        let current = manager.generate_current_token(&secret).unwrap();
+        assert!(manager.verify_token(&secret, &current).unwrap());
+    }
+
+    #[test]
+    fn test_wrong_token_is_rejected() {
+        let manager = TotpManager::new(MfaConfig::default());
+        let secret = manager.generate_secret().unwrap();
+
+        assert!(manager.verify_token(&secret, "000000").is_err());
+    }
+
+    #[test]
+    fn test_qr_url_contains_secret_and_issuer() {
+        let manager = TotpManager::new(MfaConfig::default());
+        let url = manager
+            .generate_qr_url("SECRET123", "user@example.com", "zero-trust-proxy")
+            .unwrap();
+
+        assert!(url.contains("SECRET123"));
+        assert!(url.contains("zero-trust-proxy"));
+    }
 }

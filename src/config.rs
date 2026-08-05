@@ -68,15 +68,15 @@ pub struct UpstreamConfig {
 impl Config {
     pub fn load() -> Result<Self> {
         // Try to load from config file
-        let config_path = std::env::var("CONFIG_PATH")
-            .unwrap_or_else(|_| "config/config.toml".to_string());
-        
+        let config_path =
+            std::env::var("CONFIG_PATH").unwrap_or_else(|_| "config/config.toml".to_string());
+
         if std::path::Path::new(&config_path).exists() {
             let config_str = fs::read_to_string(&config_path)?;
             let config: Config = toml::from_str(&config_str)?;
             return Ok(config);
         }
-        
+
         // Fallback to default configuration
         Ok(Self::default())
     }
@@ -103,7 +103,7 @@ impl Default for Config {
             },
             auth: AuthConfig {
                 session_duration_minutes: 15,
-                require_mfa: false,
+                require_mfa: true,
                 allowed_mfa_methods: vec!["totp".to_string()],
                 jwt_secret: std::env::var("JWT_SECRET")
                     .unwrap_or_else(|_| "change-me-in-production".to_string()),

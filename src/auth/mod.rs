@@ -4,19 +4,22 @@ use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation}
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub mod session;
-pub mod mfa;
 pub mod device;
+pub mod mfa;
+pub mod session;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: String,          // Subject (user ID)
-    pub exp: i64,             // Expiration time
-    pub iat: i64,             // Issued at
-    pub jti: String,          // JWT ID
-    pub device_id: String,    // Device identifier
-    pub risk_score: u32,      // Current risk score
-    pub mfa_verified: bool,   // Whether MFA was completed
+    pub sub: String,        // Subject (user ID)
+    pub exp: i64,           // Expiration time
+    pub iat: i64,           // Issued at
+    pub jti: String,        // JWT ID
+    pub session_id: String, // Redis session key -- lets the proxy re-check
+    // live risk/MFA state instead of trusting the
+    // token's snapshot for the whole token lifetime
+    pub device_id: String,  // Device identifier
+    pub risk_score: u32,    // Risk score at issuance time
+    pub mfa_verified: bool, // Whether MFA was completed at issuance time
 }
 
 #[derive(Debug, Clone)]
@@ -39,6 +42,7 @@ impl JwtManager {
         device_id: &str,
         risk_score: u32,
         mfa_verified: bool,
+        session_id: &str,
     ) -> ProxyResult<String> {
         let now = Utc::now();
         let exp = now + Duration::hours(self.expiration_hours);
@@ -48,6 +52,7 @@ impl JwtManager {
             exp: exp.timestamp(),
             iat: now.timestamp(),
             jti: Uuid::new_v4().to_string(),
+            session_id: session_id.to_string(),
             device_id: device_id.to_string(),
             risk_score,
             mfa_verified,
@@ -81,33 +86,11 @@ impl JwtManager {
 
         let token = auth_header
             .strip_prefix("Bearer ")
-            .ok_or_else(|| {
-                ProxyError::AuthenticationFailed("Missing bearer token".to_string())
-            })?
+            .ok_or_else(|| ProxyError::AuthenticationFailed("Missing bearer token".to_string()))?
             .to_string();
 
         Ok(token)
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct User {
-    pub id: String,
-    pub username: String,
-    pub email: String,
-    pub password_hash: String,
-    pub mfa_enabled: bool,
-    pub mfa_secret: Option<String>,
-    pub created_at: chrono::DateTime<Utc>,
-    pub updated_at: chrono::DateTime<Utc>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct LoginRequest {
-    pub username: String,
-    pub password: String,
-    pub device_id: String,
-    pub mfa_token: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -127,7 +110,7 @@ pub fn hash_password(password: &str) -> ProxyResult<String> {
 
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
-    
+
     let password_hash = argon2
         .hash_password(password.as_bytes(), &salt)
         .map_err(|e| ProxyError::AuthenticationFailed(e.to_string()))?
@@ -142,8 +125,8 @@ pub fn verify_password(password: &str, hash: &str) -> ProxyResult<bool> {
         Argon2,
     };
 
-    let parsed_hash = PasswordHash::new(hash)
-        .map_err(|e| ProxyError::AuthenticationFailed(e.to_string()))?;
+    let parsed_hash =
+        PasswordHash::new(hash).map_err(|e| ProxyError::AuthenticationFailed(e.to_string()))?;
 
     Ok(Argon2::default()
         .verify_password(password.as_bytes(), &parsed_hash)
@@ -166,12 +149,13 @@ mod tests {
     fn test_jwt_generation_and_validation() {
         let manager = JwtManager::new("test_secret".to_string(), 24);
         let token = manager
-            .generate_token("user123", "device456", 25, true)
+            .generate_token("user123", "device456", 25, true, "session789")
             .unwrap();
         let claims = manager.validate_token(&token).unwrap();
-        
+
         assert_eq!(claims.sub, "user123");
         assert_eq!(claims.device_id, "device456");
+        assert_eq!(claims.session_id, "session789");
         assert_eq!(claims.risk_score, 25);
         assert!(claims.mfa_verified);
     }

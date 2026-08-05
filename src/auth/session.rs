@@ -49,10 +49,6 @@ impl Session {
     pub fn update_activity(&mut self) {
         self.last_activity = Utc::now();
     }
-
-    pub fn extend_session(&mut self, duration_minutes: i64) {
-        self.expires_at = Utc::now() + Duration::minutes(duration_minutes);
-    }
 }
 
 pub struct SessionManager {
@@ -89,7 +85,9 @@ impl SessionManager {
         let serialized = serde_json::to_string(&session)?;
         let ttl = self.session_duration_minutes * 60; // Convert to seconds
 
-        self.redis.set_ex::<_, _, ()>(&key, serialized, ttl as u64).await?;
+        self.redis
+            .set_ex::<_, _, ()>(&key, serialized, ttl as u64)
+            .await?;
 
         Ok(session)
     }
@@ -102,7 +100,7 @@ impl SessionManager {
         match data {
             Some(serialized) => {
                 let mut session: Session = serde_json::from_str(&serialized)?;
-                
+
                 if session.is_expired() {
                     self.delete_session(session_id).await?;
                     return Err(ProxyError::InvalidSession("Session expired".to_string()));
@@ -110,7 +108,7 @@ impl SessionManager {
 
                 session.update_activity();
                 self.update_session(&session).await?;
-                
+
                 Ok(session)
             }
             None => Err(ProxyError::InvalidSession("Session not found".to_string())),
@@ -124,7 +122,9 @@ impl SessionManager {
         let ttl = (session.expires_at - Utc::now()).num_seconds();
 
         if ttl > 0 {
-            self.redis.set_ex::<_, _, ()>(&key, serialized, ttl as u64).await?;
+            self.redis
+                .set_ex::<_, _, ()>(&key, serialized, ttl as u64)
+                .await?;
         }
 
         Ok(())
@@ -137,11 +137,21 @@ impl SessionManager {
         Ok(())
     }
 
+    /// SCAN (not KEYS) so a large keyspace doesn't block the Redis server
+    /// while a security-critical proxy is trying to make auth decisions.
+    async fn scan_session_keys(&mut self) -> ProxyResult<Vec<String>> {
+        let mut keys = Vec::new();
+        let mut iter: redis::AsyncIter<String> = self.redis.scan_match("session:*").await?;
+        while let Some(key) = iter.next_item().await {
+            keys.push(key);
+        }
+        Ok(keys)
+    }
+
     /// Get all sessions for a user
     pub async fn get_user_sessions(&mut self, user_id: &str) -> ProxyResult<Vec<Session>> {
-        let pattern = "session:*";
-        let keys: Vec<String> = self.redis.keys(pattern).await?;
-        
+        let keys = self.scan_session_keys().await?;
+
         let mut sessions = Vec::new();
         for key in keys {
             if let Ok(Some(data)) = self.redis.get::<_, Option<String>>(&key).await {
@@ -166,26 +176,6 @@ impl SessionManager {
         }
 
         Ok(count)
-    }
-
-    /// Clean up expired sessions
-    pub async fn cleanup_expired_sessions(&mut self) -> ProxyResult<usize> {
-        let pattern = "session:*";
-        let keys: Vec<String> = self.redis.keys(pattern).await?;
-        
-        let mut cleaned = 0;
-        for key in keys {
-            if let Ok(Some(data)) = self.redis.get::<_, Option<String>>(&key).await {
-                if let Ok(session) = serde_json::from_str::<Session>(&data) {
-                    if session.is_expired() {
-                        self.redis.del::<_, ()>(&key).await?;
-                        cleaned += 1;
-                    }
-                }
-            }
-        }
-
-        Ok(cleaned)
     }
 }
 
