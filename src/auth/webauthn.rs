@@ -94,9 +94,10 @@ pub trait PasskeyStore: Send + Sync {
 
 /// In-memory [`PasskeyStore`] backed by a tokio `RwLock`-guarded map.
 ///
-/// Suitable for development, tests, and single-instance deployments. For
-/// persistence across restarts use a Postgres backend built on the schema in
-/// `migrations/001_passkeys.sql`.
+/// Intended for development and tests only: credentials live in process
+/// memory, so every registered passkey is lost on restart and nothing is
+/// shared between instances. For production, implement [`PasskeyStore`] on
+/// Postgres using the schema in `migrations/001_passkeys.sql`.
 #[derive(Debug, Default)]
 pub struct InMemoryPasskeyStore {
     inner: RwLock<HashMap<(String, String), PasskeyRecord>>,
