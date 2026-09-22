@@ -14,8 +14,13 @@
 -- Challenge state (PasskeyRegistration / PasskeyAuthentication) is short-lived
 -- and single-use: it belongs in Redis or in-memory, never in this table.
 
+-- `user_id` is TEXT (not UUID): `PasskeyRecord` carries the user id as a
+-- `String`, so the column stores whatever string form the caller uses
+-- (e.g. a UUID rendered as text, or an opaque account id). There is no
+-- foreign key: the passkey store is deliberately decoupled from any user
+-- table so the trait stays backend-agnostic.
 CREATE TABLE IF NOT EXISTS passkeys (
-    user_id      UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id      TEXT         NOT NULL,
     cred_id      TEXT         NOT NULL,
     passkey      JSONB        NOT NULL,
     created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),

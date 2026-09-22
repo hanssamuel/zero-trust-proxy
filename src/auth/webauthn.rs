@@ -94,10 +94,14 @@ pub trait PasskeyStore: Send + Sync {
 
 /// In-memory [`PasskeyStore`] backed by a tokio `RwLock`-guarded map.
 ///
+/// In-memory [`PasskeyStore`] backed by a tokio `RwLock`-guarded map.
+///
 /// Intended for development and tests only: credentials live in process
 /// memory, so every registered passkey is lost on restart and nothing is
-/// shared between instances. For production, implement [`PasskeyStore`] on
-/// Postgres using the schema in `migrations/001_passkeys.sql`.
+/// shared between instances. For persistence across restarts use
+/// [`PostgresPasskeyStore`](super::passkey_store_pg::PostgresPasskeyStore),
+/// which stores credentials in Postgres using the schema in
+/// `migrations/001_passkeys.sql`.
 #[derive(Debug, Default)]
 pub struct InMemoryPasskeyStore {
     inner: RwLock<HashMap<(String, String), PasskeyRecord>>,
@@ -135,9 +139,10 @@ impl PasskeyStore for InMemoryPasskeyStore {
 
     async fn update_passkey(&self, record: &PasskeyRecord) -> ProxyResult<()> {
         let mut guard = self.inner.write().await;
-        let key = Self::key(&record.user_id, &record.cred_id);
-        if guard.contains_key(&key) {
-            guard.insert(key, record.clone());
+        if let std::collections::hash_map::Entry::Occupied(mut entry) =
+            guard.entry(Self::key(&record.user_id, &record.cred_id))
+        {
+            entry.insert(record.clone());
             Ok(())
         } else {
             Err(ProxyError::AuthenticationFailed(format!(
@@ -193,8 +198,10 @@ impl WebauthnManager {
         display_name: &str,
         exclude: &[Passkey],
     ) -> ProxyResult<(CreationChallengeResponse, PasskeyRegistration)> {
-        let exclude_ids: Vec<CredentialID> =
-            exclude.iter().map(|passkey| passkey.cred_id().clone()).collect();
+        let exclude_ids: Vec<CredentialID> = exclude
+            .iter()
+            .map(|passkey| passkey.cred_id().clone())
+            .collect();
         self.webauthn
             .start_passkey_registration(user_id, username, display_name, Some(exclude_ids))
             .map_err(ceremony_err)
@@ -323,10 +330,10 @@ pub fn mint_passkey_jwt(
 /// // 5. The user is now authenticated AND MFA-verified: mint the session JWT.
 /// let token = mint_passkey_jwt(&jwt_manager, &user.id.to_string(), device_id, session_id, risk_score)?;
 /// ```
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::PasskeyStoreKind;
 
     fn test_manager() -> WebauthnManager {
         WebauthnManager::new(WebauthnConfig {
@@ -334,6 +341,7 @@ mod tests {
             rp_origin: "https://example.com".to_string(),
             rp_name: "Test Proxy".to_string(),
             enabled: true,
+            passkey_store: PasskeyStoreKind::Memory,
         })
         .expect("test webauthn manager must build")
     }
@@ -382,10 +390,9 @@ mod tests {
     #[test]
     fn registration_challenge_is_browser_json_and_state_round_trips() {
         let manager = test_manager();
-        let (challenge, state) =
-            manager
-                .start_passkey_registration(Uuid::new_v4(), "alice", "Alice", &[])
-                .expect("registration start must succeed");
+        let (challenge, state) = manager
+            .start_passkey_registration(Uuid::new_v4(), "alice", "Alice", &[])
+            .expect("registration start must succeed");
 
         // The challenge goes to the browser as JSON.
         let challenge_json = serde_json::to_value(&challenge).expect("challenge must serialise");
@@ -467,7 +474,10 @@ mod tests {
         assert_eq!(fetched.len(), 1);
 
         // Delete removes it.
-        store.delete_passkey("user-1", &record.cred_id).await.unwrap();
+        store
+            .delete_passkey("user-1", &record.cred_id)
+            .await
+            .unwrap();
         assert!(store.get_passkeys("user-1").await.unwrap().is_empty());
     }
 
@@ -486,7 +496,12 @@ mod tests {
         let manager = test_manager();
         let existing = fixture_passkey();
         let (challenge, _) = manager
-            .start_passkey_registration(Uuid::new_v4(), "alice", "Alice", std::slice::from_ref(&existing))
+            .start_passkey_registration(
+                Uuid::new_v4(),
+                "alice",
+                "Alice",
+                std::slice::from_ref(&existing),
+            )
             .expect("registration start must succeed");
 
         let challenge_json = serde_json::to_value(&challenge).unwrap();

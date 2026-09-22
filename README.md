@@ -182,8 +182,15 @@ on top of `webauthn-rs`. Configure the relying party in `[webauthn]`
 Usage sketch (see the module docs for the full ceremony walkthrough):
 
 ```rust
-let manager = WebauthnManager::new(config.webauthn)?;
-let store = InMemoryPasskeyStore::new(); // or a Postgres PasskeyStore impl
+let manager = WebauthnManager::new(config.webauthn.clone())?;
+let store = connect_passkey_store(
+    config.webauthn.passkey_store,
+    &config.database.url,
+    config.database.max_connections,
+)
+.await?;
+// `WEBAUTHN_PASSKEY_STORE=memory` selects the in-memory store for local dev;
+// the default is the Postgres-backed `PostgresPasskeyStore`.
 
 // Registration
 let (challenge, state) =
@@ -205,9 +212,11 @@ refresh_passkey(&store, &mut record, &result).await?;
 let token = mint_passkey_jwt(&jwt_manager, &user_id.to_string(), device_id, session_id, risk_score)?;
 ```
 
-Credential storage is decoupled through the `PasskeyStore` trait (in-memory
-implementation included; a Postgres table schema ships in
-`migrations/001_passkeys.sql`).
+Credential storage is decoupled through the `PasskeyStore` trait:
+`PostgresPasskeyStore` persists credentials in the `passkeys` table
+(`migrations/001_passkeys.sql`) so they survive restarts, and an in-memory
+implementation is included for dev/tests (select it with
+`WEBAUTHN_PASSKEY_STORE=memory`).
 
 ## 🧪 Testing
 

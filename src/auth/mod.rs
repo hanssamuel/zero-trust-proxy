@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 pub mod device;
 pub mod mfa;
+pub mod passkey_store_pg;
 pub mod session;
 pub mod webauthn;
 

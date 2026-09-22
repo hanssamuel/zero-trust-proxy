@@ -29,6 +29,9 @@ rp_id = "localhost"
 rp_origin = "http://localhost:8443"
 rp_name = "Zero-Trust Proxy"
 enabled = true
+# Credential store backend: "postgres" (default, durable) or "memory"
+# (process-local, dev/tests only). Overridable via WEBAUTHN_PASSKEY_STORE.
+passkey_store = "postgres"
 
 [risk]
 max_risk_score = 100

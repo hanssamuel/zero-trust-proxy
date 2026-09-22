@@ -44,6 +44,21 @@ pub struct AuthConfig {
     pub jwt_expiration_hours: i64,
 }
 
+/// Which passkey credential store the proxy uses.
+///
+/// `Postgres` (the default) persists credentials across restarts in the
+/// `passkeys` table; `Memory` keeps the process-local `InMemoryPasskeyStore`
+/// and is for local dev and tests only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum PasskeyStoreKind {
+    /// Durable Postgres storage. Production default.
+    #[default]
+    Postgres,
+    /// Process-local map; credentials vanish on restart. Dev/tests only.
+    Memory,
+}
+
 /// WebAuthn / passkey relying-party configuration.
 ///
 /// Dev defaults (documented here because they are NOT safe for production):
@@ -52,6 +67,8 @@ pub struct AuthConfig {
 ///   `http://localhost` as a secure context, so passkeys work in local dev)
 /// - `WEBAUTHN_RP_NAME` -> `"Zero-Trust Proxy"`
 /// - `WEBAUTHN_ENABLED` -> `true`
+/// - `WEBAUTHN_PASSKEY_STORE` -> `"postgres"` (`"memory"` selects the
+///   process-local store for local dev and tests)
 ///
 /// Production MUST set `WEBAUTHN_RP_ID` to the public registrable domain (no
 /// port, no scheme) and `WEBAUTHN_RP_ORIGIN` to the public `https://` origin.
@@ -62,6 +79,9 @@ pub struct WebauthnConfig {
     pub rp_origin: String,
     pub rp_name: String,
     pub enabled: bool,
+    /// Credential store backend (`Postgres` default, `Memory` for dev/tests).
+    #[serde(default)]
+    pub passkey_store: PasskeyStoreKind,
 }
 
 impl Default for WebauthnConfig {
@@ -75,6 +95,12 @@ impl Default for WebauthnConfig {
             enabled: std::env::var("WEBAUTHN_ENABLED")
                 .map(|v| v != "0" && v.to_lowercase() != "false")
                 .unwrap_or(true),
+            passkey_store: std::env::var("WEBAUTHN_PASSKEY_STORE")
+                .map(|v| match v.to_lowercase().as_str() {
+                    "memory" | "in-memory" | "inmemory" => PasskeyStoreKind::Memory,
+                    _ => PasskeyStoreKind::Postgres,
+                })
+                .unwrap_or_default(),
         }
     }
 }
