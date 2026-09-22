@@ -43,6 +43,12 @@ async fn main() -> Result<()> {
 
     info!("✅ Database connection established");
 
+    // Apply pending migrations (embedded from ./migrations at compile time)
+    // so tables such as `passkeys` exist before anything queries them.
+    sqlx::migrate!().run(&db_pool).await?;
+
+    info!("✅ Database migrations applied");
+
     // Initialize Redis connection
     let redis_client = redis::Client::open(config.redis.url.as_str())?;
     let redis_conn = redis_client.get_connection_manager().await?;

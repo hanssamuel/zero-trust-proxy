@@ -94,8 +94,6 @@ pub trait PasskeyStore: Send + Sync {
 
 /// In-memory [`PasskeyStore`] backed by a tokio `RwLock`-guarded map.
 ///
-/// In-memory [`PasskeyStore`] backed by a tokio `RwLock`-guarded map.
-///
 /// Intended for development and tests only: credentials live in process
 /// memory, so every registered passkey is lost on restart and nothing is
 /// shared between instances. For persistence across restarts use

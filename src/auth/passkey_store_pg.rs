@@ -193,32 +193,20 @@ mod tests {
     use chrono::{DateTime, Utc};
     use uuid::Uuid;
 
-    /// The actual migration file, included at compile time so tests exercise
-    /// the exact DDL that ships in `migrations/`.
-    const PASSKEYS_DDL: &str = include_str!("../../migrations/001_passkeys.sql");
-
-    /// Apply the migration DDL statement by statement: the file holds more
-    /// than one statement, and a prepared statement accepts only one, so
-    /// the file cannot be executed as a single query.
+    /// Apply the real embedded migrations (the same `sqlx::migrate!()` the
+    /// binary runs at startup), so tests exercise the DDL that ships in
+    /// `migrations/`. The migrator takes an advisory lock, so parallel tests
+    /// applying it concurrently is safe.
     async fn apply_ddl(pool: &PgPool) -> Result<(), sqlx::Error> {
-        for statement in PASSKEYS_DDL.split(';') {
-            let statement: String = statement
-                .lines()
-                .filter(|line| !line.trim_start().starts_with("--"))
-                .collect::<Vec<_>>()
-                .join("\n");
-            if statement.trim().is_empty() {
-                continue;
-            }
-            sqlx::query(&statement).execute(pool).await?;
-        }
+        sqlx::migrate!().run(pool).await?;
         Ok(())
     }
 
     /// Build a store against the `DATABASE_URL` Postgres, or `None` when
-    /// there is no database to test against (e.g. a local run without
-    /// Postgres). Each test uses its own user id so parallel tests never
-    /// share rows.
+    /// `DATABASE_URL` is unset. If it IS set, connection or migration
+    /// failures panic instead of skipping, so a broken database or broken
+    /// DDL can never masquerade as a skipped test. Each test uses its own
+    /// user id so parallel tests never share rows.
     async fn test_store() -> Option<PostgresPasskeyStore> {
         let url = std::env::var("DATABASE_URL").ok()?;
         let pool = PgPoolOptions::new()
@@ -226,8 +214,10 @@ mod tests {
             .acquire_timeout(Duration::from_secs(5))
             .connect(&url)
             .await
-            .ok()?;
-        apply_ddl(&pool).await.ok()?;
+            .expect("DATABASE_URL is set but Postgres is unreachable");
+        apply_ddl(&pool)
+            .await
+            .expect("passkeys migration must apply");
         Some(PostgresPasskeyStore::new(pool))
     }
 
@@ -236,7 +226,7 @@ mod tests {
             match test_store().await {
                 Some(store) => store,
                 None => {
-                    eprintln!("skipping postgres passkey test: DATABASE_URL unset or unreachable");
+                    eprintln!("skipping postgres passkey test: DATABASE_URL unset");
                     return;
                 }
             }

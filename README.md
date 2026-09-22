@@ -173,11 +173,13 @@ on top of `webauthn-rs`. Configure the relying party in `[webauthn]`
 (`config/config.toml`) or via `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_ORIGIN` /
 `WEBAUTHN_RP_NAME` / `WEBAUTHN_ENABLED`; dev defaults target `localhost`.
 
-> **Storage note:** the only `PasskeyStore` shipped today is
-> `InMemoryPasskeyStore`. Registered passkeys are lost on restart and are not
-> shared across instances, so use it for development and tests only. A
-> Postgres-backed store (schema in `migrations/001_passkeys.sql`) is the next
-> planned addition.
+> **Storage:** credentials are persisted in Postgres by default via
+> `PostgresPasskeyStore` (`src/auth/passkey_store_pg.rs`), using the `passkeys`
+> table from `migrations/001_passkeys.sql`. Migrations run automatically at
+> startup. Set `WEBAUTHN_PASSKEY_STORE=memory` to use `InMemoryPasskeyStore`
+> instead; it loses every passkey on restart, so keep it to local dev and tests.
+> The store layer is complete; the passkey HTTP routes are not wired into the
+> proxy yet.
 
 Usage sketch (see the module docs for the full ceremony walkthrough):
 
