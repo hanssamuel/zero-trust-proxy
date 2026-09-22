@@ -19,6 +19,17 @@ allowed_mfa_methods = ["totp", "webauthn"]
 jwt_secret = "change-this-to-a-secure-random-string-in-production"
 jwt_expiration_hours = 24
 
+[webauthn]
+# Relying-party identity for passkey ceremonies. Dev defaults use localhost
+# (browsers treat http://localhost as a secure context). Production MUST set
+# rp_id to the public domain and rp_origin to the public https:// origin.
+# Each value can also be overridden with WEBAUTHN_RP_ID / WEBAUTHN_RP_ORIGIN /
+# WEBAUTHN_RP_NAME / WEBAUTHN_ENABLED environment variables.
+rp_id = "localhost"
+rp_origin = "http://localhost:8443"
+rp_name = "Zero-Trust Proxy"
+enabled = true
+
 [risk]
 max_risk_score = 100
 step_up_threshold = 60

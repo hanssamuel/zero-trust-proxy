@@ -46,6 +46,11 @@ hmac = "0.12"
 
 # OTP/MFA
 totp-rs = "5.6"
+# danger-allow-state-serialisation lets the proxy hold ceremony challenge state
+# (PasskeyRegistration/PasskeyAuthentication) as JSON between the start and
+# finish HTTP calls, e.g. in Redis. The blobs must stay server-side.
+webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
+url = "2"
 
 # Logging & Metrics
 tracing = "0.1"

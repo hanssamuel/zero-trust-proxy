@@ -19,7 +19,7 @@ This proxy acts as a security gateway that:
 ## ✨ Key Features
 
 ### 🔐 Authentication & Identity
-- Multi-factor authentication (TOTP, WebAuthn ready, hardware keys planned)
+- Multi-factor authentication (TOTP, WebAuthn/passkeys, hardware keys planned)
 - Session management with short-lived tokens
 - Device fingerprinting and trust scoring
 - Certificate-based authentication (mTLS)
@@ -166,6 +166,43 @@ step_up_threshold = 60
 block_threshold = 85
 ```
 
+## 🔑 WebAuthn / Passkeys
+
+Passkey registration and authentication are implemented in `src/auth/webauthn.rs`
+on top of `webauthn-rs`. Configure the relying party in `[webauthn]`
+(`config/config.toml`) or via `WEBAUTHN_RP_ID` / `WEBAUTHN_RP_ORIGIN` /
+`WEBAUTHN_RP_NAME` / `WEBAUTHN_ENABLED`; dev defaults target `localhost`.
+
+Usage sketch (see the module docs for the full ceremony walkthrough):
+
+```rust
+let manager = WebauthnManager::new(config.webauthn)?;
+let store = InMemoryPasskeyStore::new(); // or a Postgres PasskeyStore impl
+
+// Registration
+let (challenge, state) =
+    manager.start_passkey_registration(user_id, username, display_name, &[])?;
+// -> POST `challenge` as JSON to the browser; stash `state` server-side
+let passkey = manager.finish_passkey_registration(&browser_response, &state)?;
+store.save_passkey(PasskeyRecord::new(user_id.to_string(), passkey)).await?;
+
+// Authentication
+let passkeys: Vec<Passkey> = store.get_passkeys(&user_id.to_string()).await?
+    .into_iter().map(|r| r.passkey).collect();
+let (challenge, state) = manager.start_passkey_authentication(&passkeys)?;
+// -> POST `challenge` as JSON; stash `state`; browser posts back an assertion
+let result = manager.finish_passkey_authentication(&browser_assertion, &state)?;
+refresh_passkey(&store, &mut record, &result).await?;
+
+// Passkey ceremonies require user verification, so the session JWT is
+// minted with mfa_verified = true.
+let token = mint_passkey_jwt(&jwt_manager, &user_id.to_string(), device_id, session_id, risk_score)?;
+```
+
+Credential storage is decoupled through the `PasskeyStore` trait (in-memory
+implementation included; a Postgres table schema ships in
+`migrations/001_passkeys.sql`).
+
 ## 🧪 Testing
 
 Run the test suite:
@@ -212,7 +249,7 @@ Key metrics:
 - [x] Risk scoring engine
 - [x] Policy engine with ABAC
 - [x] Device fingerprinting
-- [ ] WebAuthn support
+- [x] WebAuthn/passkey support (registration + authentication ceremonies, credential storage trait)
 - [ ] Behavioral anomaly detection with ML
 - [ ] Threat intelligence integration
 - [ ] Admin dashboard and UI

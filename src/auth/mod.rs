@@ -7,6 +7,7 @@ use uuid::Uuid;
 pub mod device;
 pub mod mfa;
 pub mod session;
+pub mod webauthn;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {

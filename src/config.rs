@@ -8,6 +8,8 @@ pub struct Config {
     pub database: DatabaseConfig,
     pub redis: RedisConfig,
     pub auth: AuthConfig,
+    #[serde(default)]
+    pub webauthn: WebauthnConfig,
     pub risk: RiskConfig,
     pub policy: PolicyConfig,
     pub upstream: UpstreamConfig,
@@ -40,6 +42,41 @@ pub struct AuthConfig {
     pub allowed_mfa_methods: Vec<String>,
     pub jwt_secret: String,
     pub jwt_expiration_hours: i64,
+}
+
+/// WebAuthn / passkey relying-party configuration.
+///
+/// Dev defaults (documented here because they are NOT safe for production):
+/// - `WEBAUTHN_RP_ID` -> `"localhost"`
+/// - `WEBAUTHN_RP_ORIGIN` -> `"http://localhost:8443"` (browsers treat
+///   `http://localhost` as a secure context, so passkeys work in local dev)
+/// - `WEBAUTHN_RP_NAME` -> `"Zero-Trust Proxy"`
+/// - `WEBAUTHN_ENABLED` -> `true`
+///
+/// Production MUST set `WEBAUTHN_RP_ID` to the public registrable domain (no
+/// port, no scheme) and `WEBAUTHN_RP_ORIGIN` to the public `https://` origin.
+/// Every field can also be set through `config/config.toml` under `[webauthn]`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebauthnConfig {
+    pub rp_id: String,
+    pub rp_origin: String,
+    pub rp_name: String,
+    pub enabled: bool,
+}
+
+impl Default for WebauthnConfig {
+    fn default() -> Self {
+        Self {
+            rp_id: std::env::var("WEBAUTHN_RP_ID").unwrap_or_else(|_| "localhost".to_string()),
+            rp_origin: std::env::var("WEBAUTHN_RP_ORIGIN")
+                .unwrap_or_else(|_| "http://localhost:8443".to_string()),
+            rp_name: std::env::var("WEBAUTHN_RP_NAME")
+                .unwrap_or_else(|_| "Zero-Trust Proxy".to_string()),
+            enabled: std::env::var("WEBAUTHN_ENABLED")
+                .map(|v| v != "0" && v.to_lowercase() != "false")
+                .unwrap_or(true),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -109,6 +146,7 @@ impl Default for Config {
                     .unwrap_or_else(|_| "change-me-in-production".to_string()),
                 jwt_expiration_hours: 24,
             },
+            webauthn: WebauthnConfig::default(),
             risk: RiskConfig {
                 max_risk_score: 100,
                 step_up_threshold: 60,
