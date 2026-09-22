@@ -71,13 +71,13 @@ impl From<PasskeyRow> for PasskeyRecord {
 
 impl PasskeyStore for PostgresPasskeyStore {
     async fn save_passkey(&self, record: PasskeyRecord) -> ProxyResult<()> {
-        // Re-registering the same credential refreshes the stored passkey
-        // instead of duplicating the row, matching the in-memory store's
-        // upsert behaviour and the `(user_id, cred_id)` uniqueness contract.
+        // Plain INSERT: the `(user_id, cred_id)` primary key rejects a
+        // duplicate credential with an error rather than silently replacing
+        // the row, so re-registration must go through an explicit
+        // delete-then-save.
         sqlx::query(
             "INSERT INTO passkeys (user_id, cred_id, passkey)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (user_id, cred_id) DO UPDATE SET passkey = EXCLUDED.passkey",
+             VALUES ($1, $2, $3)",
         )
         .bind(&record.user_id)
         .bind(&record.cred_id)
@@ -305,15 +305,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn duplicate_save_does_not_create_two_rows() {
+    async fn duplicate_save_errors_and_keeps_single_row() {
         let store = require_store!();
         let user_id = unique_user();
         let record = PasskeyRecord::new(user_id.clone(), fixture_passkey());
 
         store.save_passkey(record.clone()).await.unwrap();
-        // Re-saving the same (user_id, cred_id) refreshes the row; it must
-        // not create a duplicate.
-        store.save_passkey(record.clone()).await.unwrap();
+        // The `(user_id, cred_id)` primary key rejects the duplicate with an
+        // error; the stored row count must not change.
+        assert!(store.save_passkey(record.clone()).await.is_err());
 
         let fetched = store.get_passkeys(&user_id).await.unwrap();
         assert_eq!(fetched.len(), 1);

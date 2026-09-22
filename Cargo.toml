@@ -9,7 +9,7 @@ repository = "https://github.com/yourusername/zero-trust-proxy"
 keywords = ["security", "zero-trust", "proxy", "authentication", "authorization"]
 
 [dependencies]
-sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "postgres", "macros", "chrono", "uuid", "json"] }
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "postgres", "macros", "chrono", "uuid", "json", "migrate"] }
 # Async runtime
 tokio = { version = "1.40", features = ["full"] }
 tokio-util = "0.7"

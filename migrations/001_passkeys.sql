@@ -5,7 +5,8 @@
 -- is exactly the shape `auth::webauthn::PasskeyRecord` carries. A Postgres
 -- `PasskeyStore` implementation maps directly onto this table:
 --
---   save_passkey    -> INSERT ... ON CONFLICT (user_id, cred_id) DO UPDATE
+--   save_passkey    -> INSERT INTO passkeys (plain; the (user_id, cred_id)
+--                      primary key rejects duplicates with an error)
 --   get_passkeys    -> SELECT passkey FROM passkeys WHERE user_id = $1
 --   update_passkey  -> UPDATE passkeys SET passkey = $3, last_used_at = NOW()
 --                      WHERE user_id = $1 AND cred_id = $2
